@@ -51,17 +51,6 @@
             font-size: 12px;
             cursor: pointer;
         }
-        .download-button {
-            display: none; /* Start hidden */
-            margin: 10px auto;
-            background-color: #5865F2;
-            border: none;
-            color: white;
-            padding: 5px 10px;
-            text-align: center;
-            font-size: 12px;
-            cursor: pointer;
-        }
         #dropdown {
             position: relative;
             display: inline-block;
@@ -87,18 +76,6 @@
             text-align: left;
             overflow: hidden;
         }
-        #checkboxes label {
-            display: flex;
-            align-items: center;
-            font-size: 0.8em;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        #dropdown .arrow {
-            font-size: 16px;
-            padding-left: 10px;
-        }
         .loading {
             display: none;
             margin: 20px auto;
@@ -118,12 +95,11 @@
             <span onclick="showCheckboxes()">Select Cameras <span class="arrow">▾</span></span>
             <div id="checkboxes">
                 <label><input type="checkbox" id="selectAll" onclick="toggleSelectAll(event)">Select All</label>
-                <!-- Options will be added dynamically -->
             </div>
         </div>
         <button class="button" id="Button" onclick="displaySelectedCameras()">Display Selected Cameras</button>
     </div>
-    <button class="download-button" id="downloadButton" onclick="downloadHLSPaths()">Download Streams</button>
+    <button class="button" id="downloadButton" onclick="downloadHLSPaths()" style="display: none;">Download Streams</button>
     <div class="loading" id="loadingMessage">Loading cameras...</div>
     <div class="grid-container" id="gridContainer">
         <!-- Video players will be added here dynamically -->
@@ -138,7 +114,7 @@
             loadingMessage.style.display = 'block'; // Show loading message
 
             try {
-                const authResponse = await fetch('https://api.hostedcloudvideo.com/v1/authorizeV2', {
+                const authResponse = await fetch('https://cors-anywhere.herokuapp.com/https://api.hostedcloudvideo.com/v1/authorizeV2', {
                     method: 'GET',
                     headers: {
                         'accept': 'application/json',
@@ -148,7 +124,7 @@
                 const authData = await authResponse.json();
                 const accountId = authData.accountId;
 
-                const camerasResponse = await fetch(`https://api.hostedcloudvideo.com/v1/users/${accountId}/cameras?order=username&direction=asc`, {
+                const camerasResponse = await fetch(`https://cors-anywhere.herokuapp.com/https://api.hostedcloudvideo.com/v1/users/${accountId}/cameras?order=username&direction=asc`, {
                     method: 'GET',
                     headers: {
                         'accept': 'application/json',
@@ -189,7 +165,7 @@
 
                 for (const cameraId of selectedCameras) {
                     const camera = camerasData.find(cam => cam.id === cameraId);
-                    const streamResponse = await fetch(`https://api.hostedcloudvideo.com/v1/cameras/${camera.id}/stream/hls`, {
+                    const streamResponse = await fetch(`https://cors-anywhere.herokuapp.com/https://api.hostedcloudvideo.com/v1/cameras/${camera.id}/stream/hls`, {
                         method: 'GET',
                         headers: {
                             'accept': 'application/json',
