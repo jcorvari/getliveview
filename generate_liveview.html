@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Stream Viewer</title>
+    <style>
+        body {
+            background-color: #2c2f33;
+            color: #cbcfd6;
+            font-family: 'Roboto', sans-serif;
+            text-align: center;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .horizontal-line {
+            border-top: 2px solid white;
+            width: 100%;
+        }
+        .api-input {
+            margin: 20px;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            height: 100vh;
+        }
+        .video-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .button {
+            margin: 10px auto;
+            background-color: #5865F2;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            text-align: center;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .download-button {
+            display: none; /* Start hidden */
+            margin: 10px auto;
+            background-color: #5865F2;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            text-align: center;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        #dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        #dropdown span {
+            padding: 10px 20px;
+            background-color: #1e2124;
+            color: white;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+        }
+        #checkboxes {
+            display: none;
+            position: absolute;
+            background-color: #1e2124;
+            min-width: 160px;
+            max-width: 300px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            padding: 12px 16px;
+            z-index: 1;
+            color: #bcbfc6;
+            text-align: left;
+            overflow: hidden;
+        }
+        #checkboxes label {
+            display: flex;
+            align-items: center;
+            font-size: 0.8em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #dropdown .arrow {
+            font-size: 16px;
+            padding-left: 10px;
+        }
+        .loading {
+            display: none;
+            margin: 20px auto;
+            color: white;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+    <div class="horizontal-line"></div>
+    <div class="api-input">
+        <input type="text" id="apiKey" placeholder="Enter API Key">
+        <button class="button" onclick="fetchCameras()">Fetch Cameras</button>
+    </div>
+    <div class="camera-selection" style="margin: 20px;">
+        <div id="dropdown">
+            <span onclick="showCheckboxes()">Select Cameras <span class="arrow">▾</span></span>
+            <div id="checkboxes">
+                <label><input type="checkbox" id="selectAll" onclick="toggleSelectAll(event)">Select All</label>
+                <!-- Options will be added dynamically -->
+            </div>
+        </div>
+        <button class="button" id="Button" onclick="displaySelectedCameras()">Display Selected Cameras</button>
+    </div>
+    <button class="download-button" id="downloadButton" onclick="downloadHLSPaths()">Download Streams</button>
+    <div class="loading" id="loadingMessage">Loading cameras...</div>
+    <div class="grid-container" id="gridContainer">
+        <!-- Video players will be added here dynamically -->
+    </div>
+    <script>
+        let camerasData = [];
+        let videoSources = [];
+
+        async function fetchCameras() {
+            const apiKey = document.getElementById('apiKey').value;
+            const loadingMessage = document.getElementById('loadingMessage');
+            loadingMessage.style.display = 'block'; // Show loading message
+
+            try {
+                const authResponse = await fetch('https://api.hostedcloudvideo.com/v1/authorizeV2', {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'Authorization': 'Bearer ' + apiKey
+                    }
+                });
+                const authData = await authResponse.json();
+                const accountId = authData.accountId;
+
+                const camerasResponse = await fetch(`https://api.hostedcloudvideo.com/v1/users/${accountId}/cameras?order=username&direction=asc`, {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'Authorization': 'Bearer ' + apiKey
+                    }
+                });
+                camerasData = await camerasResponse.json();
+
+                const checkboxes = document.getElementById('checkboxes');
+                checkboxes.innerHTML = '<label><input type="checkbox" id="selectAll" onclick="toggleSelectAll(event)">Select All</label>'; // Clear previous content and add Select All checkbox
+
+                camerasData.forEach(camera => {
+                    const label = document.createElement('label');
+                    label.innerHTML = `<input type="checkbox" value="${camera.id}" onclick="event.stopPropagation();">${camera.name}`;
+                    checkboxes.appendChild(label);
+                });
+            } catch (error) {
+                console.error('Error fetching cameras:', error);
+                alert('Failed to fetch cameras. Please check your API key and try again.');
+            } finally {
+                loadingMessage.style.display = 'none'; // Hide loading message
+            }
+        }
+
+        async function displaySelectedCameras() {
+            const apiKey = document.getElementById('apiKey').value;
+            const loadingMessage = document.getElementById('loadingMessage');
+            loadingMessage.style.display = 'block'; // Show loading message
+            document.getElementById('downloadButton').style.display = 'none'; // Hide download button
+
+            try {
+                const selectedCameras = Array.from(document.querySelectorAll('#checkboxes input:checked'))
+                    .filter(input => input.id !== 'selectAll') // Exclude the "Select All" checkbox
+                    .map(input => input.value);
+                const gridContainer = document.getElementById('gridContainer');
+                gridContainer.innerHTML = ''; // Clear previous content
+                videoSources = []; // Clear previous video sources
+
+                for (const cameraId of selectedCameras) {
+                    const camera = camerasData.find(cam => cam.id === cameraId);
+                    const streamResponse = await fetch(`https://api.hostedcloudvideo.com/v1/cameras/${camera.id}/stream/hls`, {
+                        method: 'GET',
+                        headers: {
+                            'accept': 'application/json',
+                            'Authorization': 'Bearer ' + apiKey
+                        }
+                    });
+                    const streamData = await streamResponse.json();
+                    const videoUri = streamData.uri;
+                    videoSources.push(videoUri); // Store video source
+
+                    const player = document.createElement('div');
+                    player.className = 'video-player';
+
+                    const videoContainer = document.createElement('div');
+                    videoContainer.className = 'video-container';
+                    videoContainer.innerHTML = `<video id="video-${camera.id}" controls muted></video>`;
+                    player.appendChild(videoContainer);
+
+                    gridContainer.appendChild(player);
+
+                    const video = videoContainer.querySelector('video');
+                    video.src = videoUri;
+
+                    if (Hls.isSupported()) {
+                        const hls = new Hls();
+                        hls.loadSource(videoUri);
+                        hls.attachMedia(video);
+                        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                            video.play();
+                        });
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        video.src = videoUri;
+                        video.addEventListener('loadedmetadata', function() {
+                            video.play();
+                        });
+                    }
+                }
+
+                // Show the download button once the cameras are displayed
+                document.getElementById('downloadButton').style.display = 'block';
+            } catch (error) {
+                console.error('Error displaying selected cameras:', error);
+                alert('Failed to display selected cameras. Please try again.');
+            } finally {
+                loadingMessage.style.display = 'none'; // Hide loading message
+            }
+        }
+
+        function downloadHLSPaths() {
+            const blob = new Blob([videoSources.join('\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'hls_paths.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function showCheckboxes() {
+            const checkboxes = document.getElementById("checkboxes");
+            const arrow = document.querySelector("#dropdown .arrow");
+            if (checkboxes.style.display !== 'block') {
+                checkboxes.style.display = 'block';
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                checkboxes.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function toggleSelectAll(event) {
+            const checkboxes = document.querySelectorAll('#checkboxes input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                if (checkbox.id !== 'selectAll') {
+                    checkbox.checked = event.target.checked;
+                }
+            });
+        }
+
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('dropdown');
+            const checkboxes = document.getElementById('checkboxes');
+            if (!dropdown.contains(event.target) && !event.target.matches('#dropdown span, #dropdown .arrow')) {
+                checkboxes.style.display = 'none';
+                document.querySelector("#dropdown .arrow").style.transform = 'rotate(0deg)';
+            }
+        });
+    </script>
+</body>
+</html>
