@@ -101,9 +101,7 @@
     </div>
     <button class="button" id="downloadButton" onclick="downloadHLSPaths()" style="display: none;">Download Streams</button>
     <div class="loading" id="loadingMessage">Loading cameras...</div>
-    <div class="grid-container" id="gridContainer">
-        <!-- Video players will be added here dynamically -->
-    </div>
+    <div class="grid-container" id="gridContainer"></div>
     <script>
         let camerasData = [];
         let videoSources = [];
@@ -114,27 +112,34 @@
             loadingMessage.style.display = 'block'; // Show loading message
 
             try {
-                const authResponse = await fetch('https://cors-anywhere.herokuapp.com/https://api.hostedcloudvideo.com/v1/authorizeV2', {
+                const response = await fetch('https://api.hostedcloudvideo.com/v1/authorizeV2', {
                     method: 'GET',
                     headers: {
                         'accept': 'application/json',
-                        'Authorization': 'Bearer ' + apiKey
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Origin': window.location.origin // Setting the origin
                     }
                 });
-                const authData = await authResponse.json();
+
+                if (!response.ok) throw new Error('Network response was not ok.');
+
+                const authData = await response.json();
                 const accountId = authData.accountId;
 
-                const camerasResponse = await fetch(`https://cors-anywhere.herokuapp.com/https://api.hostedcloudvideo.com/v1/users/${accountId}/cameras?order=username&direction=asc`, {
+                const camerasResponse = await fetch(`https://api.hostedcloudvideo.com/v1/users/${accountId}/cameras?order=username&direction=asc`, {
                     method: 'GET',
                     headers: {
                         'accept': 'application/json',
-                        'Authorization': 'Bearer ' + apiKey
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Origin': window.location.origin // Setting the origin
                     }
                 });
-                camerasData = await camerasResponse.json();
 
+                if (!camerasResponse.ok) throw new Error('Failed to fetch cameras.');
+
+                camerasData = await camerasResponse.json();
                 const checkboxes = document.getElementById('checkboxes');
-                checkboxes.innerHTML = '<label><input type="checkbox" id="selectAll" onclick="toggleSelectAll(event)">Select All</label>'; // Clear previous content and add Select All checkbox
+                checkboxes.innerHTML = '<label><input type="checkbox" id="selectAll" onclick="toggleSelectAll(event)">Select All</label>';
 
                 camerasData.forEach(camera => {
                     const label = document.createElement('label');
@@ -165,13 +170,17 @@
 
                 for (const cameraId of selectedCameras) {
                     const camera = camerasData.find(cam => cam.id === cameraId);
-                    const streamResponse = await fetch(`https://cors-anywhere.herokuapp.com/https://api.hostedcloudvideo.com/v1/cameras/${camera.id}/stream/hls`, {
+                    const streamResponse = await fetch(`https://api.hostedcloudvideo.com/v1/cameras/${camera.id}/stream/hls`, {
                         method: 'GET',
                         headers: {
                             'accept': 'application/json',
-                            'Authorization': 'Bearer ' + apiKey
+                            'Authorization': `Bearer ${apiKey}`,
+                            'Origin': window.location.origin // Setting the origin
                         }
                     });
+
+                    if (!streamResponse.ok) throw new Error('Failed to fetch stream data.');
+
                     const streamData = await streamResponse.json();
                     const videoUri = streamData.uri;
                     videoSources.push(videoUri); // Store video source
